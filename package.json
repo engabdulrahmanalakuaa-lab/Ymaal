@@ -1,0 +1,39 @@
+{
+  "name": "technologies-soft-restaurant",
+  "version": "2.1.0",
+  "description": "نظام تقنيات سوفت المحاسبي المتكامل للمطاعم",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win --x64"
+  },
+  "author": "م/ عبدالرحمن الاكوع",
+  "license": "ISC",
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-rebuild": "^3.2.9"
+  },
+  "build": {
+    "appId": "com.technologies-soft.restaurant",
+    "productName": "تقنيات سوفت - مطاعم",
+    "win": {
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "تقنيات سوفت"
+    },
+    "files": [
+      "**/*",
+      "!dist"
+    ]
+  }
+}

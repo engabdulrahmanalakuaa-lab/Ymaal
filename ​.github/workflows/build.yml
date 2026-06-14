@@ -1,0 +1,35 @@
+name: Build & Release EXE
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: استنساخ المستودع
+        uses: actions/checkout@v4
+        
+      - name: تثبيت Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          
+      - name: تثبيت الحزم
+        run: npm ci
+        
+      - name: إعادة بناء native modules
+        run: npx electron-builder install-app-deps
+        
+      - name: بناء EXE
+        run: npm run dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: رفع EXE كـ Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: تقنيات-سوفت-مطاعم-Installer
+          path: dist/*.exe
+

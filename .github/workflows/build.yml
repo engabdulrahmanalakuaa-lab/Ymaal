@@ -16,8 +16,8 @@ jobs:
           node-version: 20
           cache: 'npm'
           
-      - name: تثبيت الحزم
-        run: npm ci
+      - name: تثبيت الحزم وتحديث الـ Lock
+        run: npm install
         
       - name: إعادة بناء native modules
         run: npx electron-builder install-app-deps
@@ -32,4 +32,3 @@ jobs:
         with:
           name: تقنيات-سوفت-مطاعم-Installer
           path: dist/*.exe
-

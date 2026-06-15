@@ -1,5 +1,5 @@
 // ==========================================
-// renderer.js - تقنيات سوفت (نسخة آمنة ومُحكمة)
+// renderer.js - تقنيات سوفت (نسخة بدون تفعيل)
 // تصميم م/ عبدالرحمن الاكوع 773579486 967+
 // ==========================================
 
@@ -14,31 +14,10 @@ let currentCategory = 'all';
 
 // ============ بدء التشغيل ============
 window.addEventListener('DOMContentLoaded', async () => {
-    const activatedResult = await api.checkActivation();
-    const activated = activatedResult.success ? activatedResult.activated : false;
-    if (!activated) {
-        document.getElementById('activation-screen').style.display = 'flex';
-        document.getElementById('app-main').style.display = 'none';
-    } else {
-        document.getElementById('activation-screen').style.display = 'none';
-        document.getElementById('app-main').style.display = 'flex';
-        await showLoginScreen();
-    }
+    // تجاوز شاشة التفعيل والدخول مباشرة
+    document.getElementById('app-main').style.display = 'flex';
+    await showLoginScreen();
 });
-
-// ============ التفعيل ============
-async function activateApp() {
-    const code = document.getElementById('activation-code').value.trim();
-    if (!code) return alert('الرجاء إدخال كود التفعيل');
-    const res = await api.activate(code);
-    if (res.success) {
-        document.getElementById('activation-screen').style.display = 'none';
-        document.getElementById('app-main').style.display = 'flex';
-        await showLoginScreen();
-    } else {
-        alert(res.error || 'كود التفعيل غير صحيح');
-    }
-}
 
 // ============ شاشة الدخول وإنشاء الشركة ============
 async function showLoginScreen() {
@@ -85,7 +64,6 @@ async function submitLogin() {
     const password = document.getElementById('login-password').value.trim();
     if (!username || !password) return alert('أدخل اسم المستخدم وكلمة المرور');
 
-    // استخدام قناة api.login الآمنة بدلاً من استعلام SQL مباشر
     const result = await api.login(username, password, currentCompany.id);
     if (!result.success) {
         alert(result.error || 'بيانات الدخول خاطئة');
@@ -435,7 +413,6 @@ async function checkoutPOS() {
     const today = new Date().toISOString().slice(0,10);
     const time = new Date().toLocaleTimeString('ar-SA');
 
-    // حفظ الطلب
     const result = await api.dbRun(
         'INSERT INTO orders (company_id, table_id, waiter_id, user_id, total, date, time, shift_id) VALUES (?,?,?,?,?,?,?,?)',
         [currentCompany.id, tableId, waiterId, currentUser.id, total, today, time, currentShift.id]
@@ -446,7 +423,6 @@ async function checkoutPOS() {
     }
     const orderId = result.lastInsertRowid;
 
-    // حفظ الأصناف وخصم المخزون
     for (let item of cart) {
         const itemResult = await api.dbRun('INSERT INTO order_items (order_id, product_id, qty, price) VALUES (?,?,?,?)',
             [orderId, item.id, item.qty, item.price]);
@@ -467,7 +443,6 @@ async function checkoutPOS() {
         }
     }
 
-    // تحديث الطاولة
     if (tableId) {
         await api.dbRun("UPDATE tables SET status='occupied' WHERE id=?", [tableId]);
     }
@@ -892,7 +867,7 @@ async function deleteWaiter(id) {
     if (confirm('حذف الكابتن؟')) { await api.dbRun('DELETE FROM waiters WHERE id=?', [id]); await switchTab('waiters'); }
 }
 
-// ============ التقارير (مع تحديد LIMIT لتحسين الأداء) ============
+// ============ التقارير ============
 async function renderReports() {
     document.getElementById('main-content').innerHTML = `
         <div class="page-header"><h1>التقارير</h1></div>
@@ -910,7 +885,6 @@ async function generateReport() {
     const end = document.getElementById('rep-end').value;
     if (!start || !end) return;
 
-    // جلب الطلبات مع تحديد عدد أقصى (1000 سجل) وعرض الأحدث أولاً
     const result = await api.dbQuery(
         "SELECT * FROM orders WHERE company_id=? AND date BETWEEN ? AND ? ORDER BY id DESC LIMIT 1000",
         [currentCompany.id, start, end]
@@ -1312,5 +1286,4 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// ============ الختام ============
-console.log('🚀 نظام تقنيات سوفت المحاسبي المتكامل جاهز - تصميم م/ عبدالرحمن الاكوع 773579486 967+');
+console.log('🚀 نظام تقنيات سوفت المحاسبي المتكامل جاهز - نسخة بدون تفعيل');

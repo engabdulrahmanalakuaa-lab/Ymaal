@@ -6,10 +6,6 @@ contextBridge.exposeInMainWorld('api', {
     dbRun: (sql, params) => ipcRenderer.invoke('db-run', sql, params),
     dbGet: (sql, params) => ipcRenderer.invoke('db-get', sql, params),
     
-    // التفعيل
-    checkActivation: () => ipcRenderer.invoke('check-activation'),
-    activate: (code) => ipcRenderer.invoke('activate', code),
-    
     // المنتجات
     saveProduct: (data) => ipcRenderer.invoke('save-product', data),
     deleteProduct: (id, company_id) => ipcRenderer.invoke('delete-product', { id, company_id }),

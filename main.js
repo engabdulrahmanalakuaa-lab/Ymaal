@@ -41,458 +41,329 @@ function initializeDatabase() {
 
         CREATE TABLE IF NOT EXISTS settings (
             company_id INTEGER PRIMARY KEY,
-            safe_mode INTEGER DEFAULT 0,
-            currency TEXT DEFAULT 'SAR',
-            pagination INTEGER DEFAULT 20,
-            show_company_screen INTEGER DEFAULT 1,
-            profit_margin_percent REAL DEFAULT 30,
+            safe_balance REAL DEFAULT 0,
+            tax_rate REAL DEFAULT 0,
+            service_rate REAL DEFAULT 0,
+            receipt_header TEXT,
+            receipt_footer TEXT,
             FOREIGN KEY (company_id) REFERENCES companies(id)
         );
 
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
-            name TEXT,
+            name TEXT NOT NULL,
             FOREIGN KEY (company_id) REFERENCES companies(id)
         );
 
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
-            name TEXT,
             category_id INTEGER,
-            price REAL CHECK(price >= 0),
-            barcode TEXT,
-            recipe TEXT,
-            image TEXT DEFAULT '',
-            unit TEXT DEFAULT 'قطعة',
-            daily_forecast INTEGER DEFAULT 0,
-            monthly_forecast INTEGER DEFAULT 0,
+            name TEXT NOT NULL,
+            price REAL NOT NULL,
+            image_path TEXT,
+            is_available INTEGER DEFAULT 1,
             FOREIGN KEY (company_id) REFERENCES companies(id),
             FOREIGN KEY (category_id) REFERENCES categories(id)
         );
 
-        CREATE TABLE IF NOT EXISTS raw_materials (
+        CREATE TABLE IF NOT EXISTS inventory_materials (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
-            name TEXT,
+            name TEXT NOT NULL,
             unit TEXT,
-            current_stock REAL DEFAULT 0,
-            min_stock REAL DEFAULT 0,
-            purchase_price REAL DEFAULT 0 CHECK(purchase_price >= 0),
+            quantity REAL DEFAULT 0,
+            min_limit REAL DEFAULT 5,
             FOREIGN KEY (company_id) REFERENCES companies(id)
         );
 
-        CREATE TABLE IF NOT EXISTS tables (
+        CREATE TABLE IF NOT EXISTS product_ingredients (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id INTEGER,
-            name TEXT,
-            hall TEXT,
-            seats INTEGER,
-            status TEXT DEFAULT 'free',
-            FOREIGN KEY (company_id) REFERENCES companies(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS waiters (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id INTEGER,
-            name TEXT,
-            user_id INTEGER,
-            FOREIGN KEY (company_id) REFERENCES companies(id),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS shifts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id INTEGER,
-            user_id INTEGER,
-            opening_cash REAL,
-            closing_cash REAL,
-            date TEXT,
-            status TEXT DEFAULT 'open',
-            FOREIGN KEY (company_id) REFERENCES companies(id),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            company_id INTEGER,
-            table_id INTEGER,
-            waiter_id INTEGER,
-            user_id INTEGER,
-            total REAL,
-            date TEXT,
-            time TEXT,
-            shift_id INTEGER,
-            FOREIGN KEY (company_id) REFERENCES companies(id),
-            FOREIGN KEY (table_id) REFERENCES tables(id),
-            FOREIGN KEY (waiter_id) REFERENCES waiters(id),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-
-        CREATE TABLE IF NOT EXISTS order_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            order_id INTEGER,
             product_id INTEGER,
-            qty INTEGER,
-            price REAL,
-            FOREIGN KEY (order_id) REFERENCES orders(id),
-            FOREIGN KEY (product_id) REFERENCES products(id)
+            material_id INTEGER,
+            cost_per_unit REAL DEFAULT 0,
+            required_qty REAL NOT NULL,
+            FOREIGN KEY (product_id) REFERENCES products(id),
+            FOREIGN KEY (material_id) REFERENCES inventory_materials(id)
         );
 
         CREATE TABLE IF NOT EXISTS inventory_transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
             material_id INTEGER,
-            qty_change REAL,
-            type TEXT,
-            reference TEXT,
-            date TEXT,
+            type TEXT, -- 'in' (توريد) , 'out' (صرف)
+            quantity REAL NOT NULL,
+            price_per_unit REAL DEFAULT 0,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (company_id) REFERENCES companies(id),
-            FOREIGN KEY (material_id) REFERENCES raw_materials(id)
+            FOREIGN KEY (material_id) REFERENCES inventory_materials(id)
         );
 
-        CREATE TABLE IF NOT EXISTS chart_of_accounts (
+        CREATE TABLE IF NOT EXISTS shifts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
-            code TEXT,
-            name TEXT,
-            parent_id INTEGER,
-            FOREIGN KEY (company_id) REFERENCES companies(id)
+            user_id INTEGER,
+            start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+            end_time DATETIME,
+            initial_balance REAL DEFAULT 0,
+            end_balance REAL,
+            status TEXT DEFAULT 'open', -- 'open', 'closed'
+            FOREIGN KEY (company_id) REFERENCES companies(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
-        CREATE TABLE IF NOT EXISTS journal_entries (
+        CREATE TABLE IF NOT EXISTS sales_masters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
-            date TEXT,
-            description TEXT,
-            ref_type TEXT,
-            ref_id INTEGER,
-            FOREIGN KEY (company_id) REFERENCES companies(id)
+            shift_id INTEGER,
+            user_id INTEGER,
+            customer_name TEXT DEFAULT 'زبون سفري',
+            order_type TEXT DEFAULT 'takeaway', -- 'takeaway', 'local', 'delivery'
+            table_number TEXT,
+            total_items_price REAL DEFAULT 0,
+            discount_amount REAL DEFAULT 0,
+            tax_amount REAL DEFAULT 0,
+            service_amount REAL DEFAULT 0,
+            final_total REAL DEFAULT 0,
+            paid_amount REAL DEFAULT 0,
+            change_amount REAL DEFAULT 0,
+            payment_method TEXT DEFAULT 'cash', -- 'cash', 'card', 'network'
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id),
+            FOREIGN KEY (shift_id) REFERENCES shifts(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
-        CREATE TABLE IF NOT EXISTS journal_entry_lines (
+        CREATE TABLE IF NOT EXISTS sales_details (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entry_id INTEGER,
-            account_id INTEGER,
-            debit REAL DEFAULT 0,
-            credit REAL DEFAULT 0,
-            FOREIGN KEY (entry_id) REFERENCES journal_entries(id),
-            FOREIGN KEY (account_id) REFERENCES chart_of_accounts(id)
+            sales_master_id INTEGER,
+            product_id INTEGER,
+            quantity REAL NOT NULL,
+            unit_price REAL NOT NULL,
+            total_price REAL NOT NULL,
+            FOREIGN KEY (sales_master_id) REFERENCES sales_masters(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
         );
 
-        CREATE TABLE IF NOT EXISTS expenses (
+        CREATE TABLE IF NOT EXISTS safe_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             company_id INTEGER,
-            month TEXT NOT NULL,
-            category TEXT,
-            description TEXT,
-            amount REAL DEFAULT 0 CHECK(amount >= 0),
-            type TEXT DEFAULT 'fixed',
-            FOREIGN KEY (company_id) REFERENCES companies(id)
+            shift_id INTEGER,
+            type TEXT, -- 'income', 'expense'
+            amount REAL NOT NULL,
+            source TEXT, -- 'sales', 'manual'
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (company_id) REFERENCES companies(id),
+            FOREIGN KEY (shift_id) REFERENCES shifts(id)
         );
     `);
 
-    try {
-        db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_products_company ON products(company_id);
-            CREATE INDEX IF NOT EXISTS idx_orders_company_date ON orders(company_id, date);
-            CREATE INDEX IF NOT EXISTS idx_raw_materials_company ON raw_materials(company_id);
-        `);
-    } catch(e) {}
+    // التأكد من وجود مستخدم مسؤول افتراضي إذا لم تكن هناك شركات
+    const row = db.prepare('SELECT COUNT(*) as count FROM companies').get();
+    if (row.count === 0) {
+        // سيتم إنشاء الشركة عند أول فتح تلقائياً من الـ renderer
+    }
 }
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1200,
+        width: 1280,
         height: 800,
+        minWidth: 1024,
+        minHeight: 768,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false
-        },
-        icon: path.join(__dirname, 'icon.ico')
+        }
     });
-    mainWindow.loadFile('index.html');
-    mainWindow.setMenu(null);
+
+    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+    // mainWindow.webContents.openDevTools(); // يمكنك إلغاء التعليق لفحص الأخطاء إن وجدت
 }
 
 app.whenReady().then(() => {
     initializeDatabase();
     createWindow();
+
+    app.on('activate', function () {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', function () {
     if (process.platform !== 'darwin') app.quit();
 });
 
-// ========== دوال مساعدة ==========
-function sendError(event, message) {
-    return { success: false, error: message };
-}
+// ممرات الـ IPC الآمنة لقاعدة البيانات
+function sendSuccess(data = null) { return { success: true, data }; }
+function sendError(msg, err = '') { return { success: false, error: msg, details: err }; }
 
-function sendSuccess(data = {}) {
-    return { success: true, ...data };
-}
-
-// ========== قنوات IPC ==========
-ipcMain.handle('db-query', (event, sql, params) => {
+ipcMain.handle('db-query', async (event, sql, params = []) => {
     try {
-        const stmt = db.prepare(sql);
-        const rows = params ? stmt.all(params) : stmt.all();
-        return { success: true, data: rows };
-    } catch (e) {
-        console.error('db-query error:', e.message);
-        return sendError(event, 'خطأ في استعلام قاعدة البيانات: ' + e.message);
-    }
+        const rows = db.prepare(sql).all(params);
+        return sendSuccess(rows);
+    } catch (e) { return sendError('خطأ في جلب البيانات', e.message); }
 });
 
-ipcMain.handle('db-run', (event, sql, params) => {
+ipcMain.handle('db-run', async (event, sql, params = []) => {
     try {
-        const stmt = db.prepare(sql);
-        const info = params ? stmt.run(params) : stmt.run();
-        return { success: true, changes: info.changes, lastInsertRowid: info.lastInsertRowid };
-    } catch (e) {
-        console.error('db-run error:', e.message);
-        return sendError(event, 'خطأ في تنفيذ العملية: ' + e.message);
-    }
+        const result = db.prepare(sql).run(params);
+        return sendSuccess({ lastInsertRowid: result.lastInsertRowid, changes: result.changes });
+    } catch (e) { return sendError('خطأ في تنفيذ العملية', e.message); }
 });
 
-ipcMain.handle('db-get', (event, sql, params) => {
+ipcMain.handle('db-get', async (event, sql, params = []) => {
     try {
-        const stmt = db.prepare(sql);
-        const row = params ? stmt.get(params) : stmt.get();
-        return { success: true, data: row };
-    } catch (e) {
-        console.error('db-get error:', e.message);
-        return sendError(event, 'خطأ في استعلام قاعدة البيانات: ' + e.message);
-    }
+        const row = db.prepare(sql).get(params);
+        return sendSuccess(row);
+    } catch (e) { return sendError('خطأ في جلب السجل', e.message); }
 });
 
-function validateProduct(data) {
-    if (!data.name || data.name.trim().length === 0) return 'اسم المنتج مطلوب';
-    if (isNaN(data.price) || data.price < 0) return 'السعر يجب أن يكون رقماً موجباً';
-    if (data.price > 999999.99) return 'السعر كبير جداً';
-    if (data.name.length > 100) return 'اسم المنتج طويل جداً';
-    return null;
-}
-
-function validateMaterial(data) {
-    if (!data.name || data.name.trim().length === 0) return 'اسم المادة مطلوب';
-    if (data.name.length > 100) return 'اسم المادة طويل جداً';
-    if (isNaN(data.purchase_price) || data.purchase_price < 0) return 'سعر الشراء يجب أن يكون رقماً موجباً';
-    if (isNaN(data.min_stock) || data.min_stock < 0) return 'الحد الأدنى يجب أن يكون رقماً موجباً';
-    return null;
-}
-
-function deleteImageFile(relativePath) {
-    if (!relativePath) return;
+// منطق تسجيل الدخول الخاص بالشركة والمستخدم
+ipcMain.handle('login', async (event, { username, password, company_id }) => {
     try {
-        const fullPath = path.join(userDataPath, relativePath);
-        if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
-        }
-    } catch (e) {
-        console.error('Error deleting image:', e.message);
-    }
-}
-
-ipcMain.handle('save-product', (event, data) => {
-    try {
-        const validationError = validateProduct(data);
-        if (validationError) return sendError(event, validationError);
-
-        if (data.id) {
-            db.prepare(`UPDATE products SET name=?, price=?, category_id=?, barcode=?, recipe=?, image=? WHERE id=? AND company_id=?`)
-                .run(data.name.trim(), data.price, data.category_id, data.barcode, data.recipe, data.image || '', data.id, data.company_id);
-            return sendSuccess({ id: data.id });
-        } else {
-            const info = db.prepare(`INSERT INTO products (company_id, name, price, category_id, barcode, recipe, image) VALUES (?,?,?,?,?,?,?)`)
-                .run(data.company_id, data.name.trim(), data.price, data.category_id, data.barcode, data.recipe, data.image || '');
-            return sendSuccess({ id: info.lastInsertRowid });
-        }
-    } catch (e) {
-        console.error('save-product error:', e.message);
-        return sendError(event, 'خطأ في حفظ المنتج: ' + e.message);
-    }
+        const user = db.prepare('SELECT * FROM users WHERE username = ? AND company_id = ?').get([username, company_id]);
+        if (!user) return sendError('اسم المستخدم غير صحيح التابع لهذا المطعم');
+        if (user.is_blocked === 1) return sendError('هذا المستخدم محظور من النظام');
+        
+        const valid = bcrypt.compareSync(password, user.password_hash);
+        if (!valid) return sendError('كلمة المرور غير صحيحة');
+        
+        return sendSuccess(user);
+    } catch (e) { return sendError('خطأ في عملية تسجيل الدخول'); }
 });
 
-ipcMain.handle('delete-product', (event, { id, company_id }) => {
+ipcMain.handle('create-user', async (event, data) => {
     try {
-        const product = db.prepare('SELECT image FROM products WHERE id=? AND company_id=?').get(id, company_id);
-        if (product && product.image) {
-            deleteImageFile(product.image);
-        }
-        db.prepare('DELETE FROM products WHERE id=? AND company_id=?').run(id, company_id);
-        return sendSuccess();
-    } catch (e) {
-        console.error('delete-product error:', e.message);
-        return sendError(event, 'خطأ في حذف المنتج: ' + e.message);
-    }
+        const hash = bcrypt.hashSync(data.password, 10);
+        const res = db.prepare(`
+            INSERT INTO users (company_id, full_name, username, password_hash, role)
+            VALUES (?, ?, ?, ?, ?)
+        `).run([data.company_id, data.full_name, data.username, hash, data.role]);
+        return sendSuccess(res.lastInsertRowid);
+    } catch (e) { return sendError('خطأ في إنشاء المستخدم'); }
 });
 
-ipcMain.handle('save-material', (event, data) => {
+ipcMain.handle('update-user', async (event, data) => {
     try {
-        const validationError = validateMaterial(data);
-        if (validationError) return sendError(event, validationError);
-
-        if (data.id) {
-            db.prepare('UPDATE raw_materials SET name=?, unit=?, min_stock=?, purchase_price=? WHERE id=? AND company_id=?')
-                .run(data.name.trim(), data.unit, data.min_stock, data.purchase_price, data.id, data.company_id);
-            return sendSuccess({ id: data.id });
-        } else {
-            const info = db.prepare('INSERT INTO raw_materials (company_id, name, unit, min_stock, purchase_price) VALUES (?,?,?,?,?)')
-                .run(data.company_id, data.name.trim(), data.unit, data.min_stock, data.purchase_price);
-            return sendSuccess({ id: info.lastInsertRowid });
-        }
-    } catch (e) {
-        console.error('save-material error:', e.message);
-        return sendError(event, 'خطأ في حفظ المادة: ' + e.message);
-    }
-});
-
-ipcMain.handle('delete-material', (event, { id, company_id }) => {
-    try {
-        const products = db.prepare('SELECT id, name, recipe FROM products WHERE company_id=? AND recipe IS NOT NULL AND recipe != ?').all(company_id, '[]');
-        let usedInProducts = [];
-        
-        for (let p of products) {
-            try {
-                const recipe = JSON.parse(p.recipe);
-                if (recipe.some(r => r.material_id === id)) {
-                    usedInProducts.push(p.name);
-                }
-            } catch(e) {}
-        }
-        
-        if (usedInProducts.length > 0) {
-            return sendError(event, `لا يمكن حذف هذه المادة لأنها مستخدمة في المنتجات: ${usedInProducts.join('، ')}`);
-        }
-        
-        db.prepare('DELETE FROM raw_materials WHERE id=? AND company_id=?').run(id, company_id);
-        return sendSuccess();
-    } catch (e) {
-        console.error('delete-material error:', e.message);
-        return sendError(event, 'خطأ في حذف المادة: ' + e.message);
-    }
-});
-
-ipcMain.handle('login', (event, { username, password, company_id }) => {
-    try {
-        const user = db.prepare('SELECT * FROM users WHERE username=? AND company_id=? AND is_blocked=0')
-            .get(username, company_id);
-        
-        if (!user) return sendError(event, 'بيانات الدخول خاطئة');
-        
-        const isValid = bcrypt.compareSync(password, user.password_hash);
-        if (!isValid) return sendError(event, 'بيانات الدخول خاطئة');
-        
-        const { password_hash, ...safeUser } = user;
-        return sendSuccess({ user: safeUser });
-    } catch (e) {
-        console.error('login error:', e.message);
-        return sendError(event, 'خطأ في تسجيل الدخول');
-    }
-});
-
-ipcMain.handle('create-user', (event, data) => {
-    try {
-        if (!data.full_name || !data.username || !data.password) {
-            return sendError(event, 'جميع الحقول مطلوبة');
-        }
-        
-        const salt = bcrypt.genSaltSync(10);
-        const hashedPassword = bcrypt.hashSync(data.password, salt);
-        
-        const info = db.prepare('INSERT INTO users (company_id, full_name, username, password_hash, role) VALUES (?,?,?,?,?)')
-            .run(data.company_id, data.full_name.trim(), data.username.trim(), hashedPassword, data.role || 'admin');
-        return sendSuccess({ id: info.lastInsertRowid });
-    } catch (e) {
-        console.error('create-user error:', e.message);
-        return sendError(event, 'خطأ في إنشاء المستخدم: ' + e.message);
-    }
-});
-
-ipcMain.handle('update-user', (event, data) => {
-    try {
-        if (!data.full_name || !data.username) {
-            return sendError(event, 'الاسم واسم المستخدم مطلوبان');
-        }
-        
         if (data.password) {
-            const salt = bcrypt.genSaltSync(10);
-            const hashedPassword = bcrypt.hashSync(data.password, salt);
-            db.prepare('UPDATE users SET full_name=?, username=?, password_hash=?, role=? WHERE id=? AND company_id=?')
-                .run(data.full_name.trim(), data.username.trim(), hashedPassword, data.role, data.id, data.company_id);
+            const hash = bcrypt.hashSync(data.password, 10);
+            db.prepare('UPDATE users SET full_name=?, username=?, role=?, password_hash=? WHERE id=? AND company_id=?')
+              .run([data.full_name, data.username, data.role, hash, data.id, data.company_id]);
         } else {
             db.prepare('UPDATE users SET full_name=?, username=?, role=? WHERE id=? AND company_id=?')
-                .run(data.full_name.trim(), data.username.trim(), data.role, data.id, data.company_id);
+              .run([data.full_name, data.username, data.role, data.id, data.company_id]);
         }
         return sendSuccess();
-    } catch (e) {
-        console.error('update-user error:', e.message);
-        return sendError(event, 'خطأ في تحديث المستخدم');
-    }
+    } catch (e) { return sendError('خطأ في تحديث بيانات المستخدم'); }
 });
 
-ipcMain.handle('create-company', (event, { name }) => {
+ipcMain.handle('create-company', async (event, { name }) => {
     try {
-        if (!name || name.trim().length === 0) return sendError(event, 'اسم المطعم مطلوب');
+        const check = db.prepare('SELECT * FROM companies WHERE name = ?').get([name]);
+        if (check) return sendSuccess({ alreadyExists: true, company: check });
+
+        const res = db.prepare('INSERT INTO companies (name) VALUES (?)').run([name]);
+        const cid = res.lastInsertRowid;
         
-        const info = db.prepare('INSERT INTO companies (name) VALUES (?)').run(name.trim());
-        const companyId = info.lastInsertRowid;
+        // إنشاء إعدادات افتراضية للشركة
+        db.prepare('INSERT INTO settings (company_id, receipt_header, receipt_footer) VALUES (?, ?, ?)')
+          .run([cid, 'مطعم كيان الشواية البخاري', 'شكراً لزيارتكم - تقنيات سوفت']);
         
-        const salt = bcrypt.genSaltSync(10);
-        const hashedPassword = bcrypt.hashSync('0000', salt);
-        
-        db.prepare('INSERT INTO users (company_id, full_name, username, password_hash, role) VALUES (?,?,?,?,?)')
-            .run(companyId, 'المدير العام', 'admin', hashedPassword, 'admin');
-        db.prepare('INSERT INTO settings (company_id) VALUES (?)').run(companyId);
-        
-        return sendSuccess({ id: companyId, name: name.trim() });
-    } catch (e) {
-        console.error('create-company error:', e.message);
-        return sendError(event, 'خطأ في إنشاء المطعم');
-    }
+        // إنشاء مستخدم أدمن افتراضي
+        const hash = bcrypt.hashSync('admin', 10);
+        db.prepare('INSERT INTO users (company_id, full_name, username, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+          .run([cid, 'المدير العام', 'admin', hash, 'admin']);
+
+        const company = { id: cid, name };
+        return sendSuccess({ alreadyExists: false, company });
+    } catch (e) { return sendError('خطأ في تهيئة المطعم الجديد', e.message); }
 });
 
-ipcMain.handle('get-settings', (event, company_id) => {
+// حفظ المنتجات والمواد
+ipcMain.handle('save-product', async (event, data) => {
     try {
-        const settings = db.prepare('SELECT * FROM settings WHERE company_id=?').get(company_id);
-        return sendSuccess({ settings: settings || {} });
-    } catch (e) {
-        return sendSuccess({ settings: {} });
-    }
+        if (data.id) {
+            db.prepare('UPDATE products SET category_id=?, name=?, price=?, image_path=?, is_available=? WHERE id=? AND company_id=?')
+              .run([data.category_id, data.name, data.price, data.image_path, data.is_available, data.id, data.company_id]);
+            return sendSuccess(data.id);
+        } else {
+            const res = db.prepare('INSERT INTO products (company_id, category_id, name, price, image_path) VALUES (?, ?, ?, ?, ?)')
+              .run([data.company_id, data.category_id, data.name, data.price, data.image_path]);
+            return sendSuccess(res.lastInsertRowid);
+        }
+    } catch (e) { return sendError('خطأ في حفظ المنتج'); }
 });
 
+ipcMain.handle('delete-product', async (event, { id, company_id }) => {
+    try {
+        db.prepare('DELETE FROM products WHERE id = ? AND company_id = ?').run([id, company_id]);
+        return sendSuccess();
+    } catch (e) { return sendError('لا يمكن حذف المنتج لارتباطه بعمليات بيع سابقة'); }
+});
+
+ipcMain.handle('save-material', async (event, data) => {
+    try {
+        if (data.id) {
+            db.prepare('UPDATE inventory_materials SET name=?, unit=?, min_limit=? WHERE id=? AND company_id=?')
+              .run([data.name, data.unit, data.min_limit, data.id, data.company_id]);
+            return sendSuccess(data.id);
+        } else {
+            const res = db.prepare('INSERT INTO inventory_materials (company_id, name, unit, min_limit) VALUES (?, ?, ?, ?)')
+              .run([data.company_id, data.name, data.unit, data.min_limit]);
+            return sendSuccess(res.lastInsertRowid);
+        }
+    } catch (e) { return sendError('خطأ في حفظ المادة المخزنية'); }
+});
+
+ipcMain.handle('delete-material', async (event, { id, company_id }) => {
+    try {
+        db.prepare('DELETE FROM inventory_materials WHERE id = ? AND company_id = ?').run([id, company_id]);
+        return sendSuccess();
+    } catch (e) { return sendError('لا يمكن حذف المادة لارتباطها بجداول الإنتاج أو الفواتير'); }
+});
+
+ipcMain.handle('get-settings', async (event, company_id) => {
+    try {
+        let settings = db.prepare('SELECT * FROM settings WHERE company_id = ?').get([company_id]);
+        if (!settings) {
+            db.prepare('INSERT INTO settings (company_id, receipt_header, receipt_footer) VALUES (?, ?, ?)')
+              .run([company_id, 'مطعم كيان الشواية البخاري', 'شكراً لزيارتكم - تقنيات سوفت']);
+            settings = db.prepare('SELECT * FROM settings WHERE company_id = ?').get([company_id]);
+        }
+        return sendSuccess(settings);
+    } catch (e) { return sendError('خطأ في جلب الإعدادات'); }
+});
+
+// التعامل مع الطباعة الحرارية المباشرة أو عبر نافذة وهمية للطباعة
 ipcMain.on('print-thermal', (event, htmlContent) => {
-    try {
-        let printWindow = new BrowserWindow({ show: false });
-        printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-        printWindow.webContents.on('did-finish-load', () => {
-            printWindow.webContents.print({ silent: true, printBackground: false });
-            printWindow.close();
+    let printWindow = new BrowserWindow({ show: false, webPreferences: { nodeIntegration: true } });
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+    printWindow.webContents.on('did-finish-load', () => {
+        printWindow.webContents.print({ silent: true, printBackground: true }, (success, failureReason) => {
+            printWindow.destroy();
         });
-    } catch (e) {
-        console.error('print-thermal error:', e.message);
-    }
+    });
 });
 
+// النسخ الاحتياطي
 ipcMain.handle('backup-database', async () => {
     try {
         const { filePath } = await dialog.showSaveDialog(mainWindow, {
-            title: 'حفظ نسخة احتياطية',
-            defaultPath: `backup_${new Date().toISOString().slice(0,10)}.db`,
+            title: 'حفظ نسخة احتياطية من قاعدة البيانات',
+            defaultPath: path.join(app.getPath('desktop'), `backup-restaurant-${Date.now()}.db`),
             filters: [{ name: 'Database', extensions: ['db'] }]
         });
         if (filePath) {
             fs.copyFileSync(dbPath, filePath);
-            return sendSuccess();
+            return sendSuccess({ filePath });
         }
         return sendSuccess({ cancelled: true });
-    } catch (e) {
-        return sendError(null, 'خطأ في النسخ الاحتياطي');
-    }
+    } catch (e) { return sendError('خطأ في تصدير النسخة الاحتياطية'); }
 });
 
 ipcMain.handle('restore-database', async () => {
@@ -509,9 +380,7 @@ ipcMain.handle('restore-database', async () => {
             return sendSuccess();
         }
         return sendSuccess({ cancelled: true });
-    } catch (e) {
-        return sendError(null, 'خطأ في استيراد النسخة الاحتياطية');
-    }
+    } catch (e) { return sendError(null, 'خطأ في استيراد النسخة الاحتياطية'); }
 });
 
 ipcMain.handle('save-image', async (event, { fileName, buffer }) => {
@@ -530,8 +399,6 @@ ipcMain.handle('get-image-path', (event, relativePath) => {
         if (!relativePath) return sendSuccess({ path: '' });
         if (path.isAbsolute(relativePath)) return sendSuccess({ path: relativePath });
         const fullPath = path.join(userDataPath, relativePath);
-        return sendSuccess({ path: fs.existsSync(fullPath) ? fullPath : '' });
-    } catch (e) {
-        return sendSuccess({ path: '' });
-    }
+        return sendSuccess({ path: fullPath });
+    } catch (e) { return sendError(null, e.message); }
 });

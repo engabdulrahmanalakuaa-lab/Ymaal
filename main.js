@@ -3,23 +3,12 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 
 let mainWindow;
 let db;
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'database.db');
 const imagesDir = path.join(userDataPath, 'product-images');
-
-// ============ دالة تجزئة كود التفعيل ============
-function hashActivationCode(code) {
-    // استخدام SHA-256 مع salt ثابت (خاص بالنظام)
-    const salt = 'TechSoft-Restaurant-2024-Salt-Key';
-    return crypto.createHash('sha256').update(salt + code).digest('hex');
-}
-
-// كود التفعيل الصحيح (مخزن بشكل مجزأ)
-const VALID_ACTIVATION_HASH = hashActivationCode('773579486967015');
 
 function initializeDatabase() {
     if (!fs.existsSync(imagesDir)) {
@@ -28,16 +17,9 @@ function initializeDatabase() {
 
     db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON'); // تفعيل قيود المفاتيح الأجنبية
+    db.pragma('foreign_keys = ON'); 
     
     db.exec(`
-        CREATE TABLE IF NOT EXISTS activation (
-            id INTEGER PRIMARY KEY CHECK(id = 1),
-            code_hash TEXT,
-            activated INTEGER DEFAULT 0
-        );
-        INSERT OR IGNORE INTO activation (id, activated) VALUES (1, 0);
-
         CREATE TABLE IF NOT EXISTS companies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -211,7 +193,6 @@ function initializeDatabase() {
         );
     `);
 
-    // إنشاء فهارس لتحسين الأداء
     try {
         db.exec(`
             CREATE INDEX IF NOT EXISTS idx_products_company ON products(company_id);
@@ -288,32 +269,6 @@ ipcMain.handle('db-get', (event, sql, params) => {
     }
 });
 
-ipcMain.handle('check-activation', () => {
-    try {
-        const row = db.prepare('SELECT activated FROM activation WHERE id = 1').get();
-        return { success: true, activated: row ? row.activated === 1 : false };
-    } catch (e) {
-        return { success: true, activated: false };
-    }
-});
-
-ipcMain.handle('activate', (event, code) => {
-    try {
-        if (!code || code.length === 0) {
-            return sendError(event, 'كود التفعيل غير صالح');
-        }
-        const inputHash = hashActivationCode(code);
-        if (inputHash === VALID_ACTIVATION_HASH) {
-            db.prepare('UPDATE activation SET code_hash = ?, activated = 1 WHERE id = 1').run(inputHash);
-            return sendSuccess({ message: 'تم التفعيل بنجاح' });
-        }
-        return sendError(event, 'كود التفعيل غير صحيح');
-    } catch (e) {
-        return sendError(event, 'خطأ في عملية التفعيل');
-    }
-});
-
-// التحقق من صحة المنتج قبل الحفظ
 function validateProduct(data) {
     if (!data.name || data.name.trim().length === 0) return 'اسم المنتج مطلوب';
     if (isNaN(data.price) || data.price < 0) return 'السعر يجب أن يكون رقماً موجباً';
@@ -322,7 +277,6 @@ function validateProduct(data) {
     return null;
 }
 
-// التحقق من صحة المادة الخام
 function validateMaterial(data) {
     if (!data.name || data.name.trim().length === 0) return 'اسم المادة مطلوب';
     if (data.name.length > 100) return 'اسم المادة طويل جداً';
@@ -331,7 +285,6 @@ function validateMaterial(data) {
     return null;
 }
 
-// حذف ملف الصورة
 function deleteImageFile(relativePath) {
     if (!relativePath) return;
     try {
@@ -344,7 +297,6 @@ function deleteImageFile(relativePath) {
     }
 }
 
-// قناة محسنة لحفظ المنتج
 ipcMain.handle('save-product', (event, data) => {
     try {
         const validationError = validateProduct(data);
@@ -365,10 +317,8 @@ ipcMain.handle('save-product', (event, data) => {
     }
 });
 
-// قناة محسنة لحذف المنتج مع حذف الصورة
 ipcMain.handle('delete-product', (event, { id, company_id }) => {
     try {
-        // جلب مسار الصورة قبل الحذف
         const product = db.prepare('SELECT image FROM products WHERE id=? AND company_id=?').get(id, company_id);
         if (product && product.image) {
             deleteImageFile(product.image);
@@ -381,7 +331,6 @@ ipcMain.handle('delete-product', (event, { id, company_id }) => {
     }
 });
 
-// حفظ المادة الخام مع تحقق
 ipcMain.handle('save-material', (event, data) => {
     try {
         const validationError = validateMaterial(data);
@@ -402,10 +351,8 @@ ipcMain.handle('save-material', (event, data) => {
     }
 });
 
-// حذف مادة خام مع التحقق من عدم استخدامها في وصفات
 ipcMain.handle('delete-material', (event, { id, company_id }) => {
     try {
-        // التحقق من استخدام المادة في وصفات
         const products = db.prepare('SELECT id, name, recipe FROM products WHERE company_id=? AND recipe IS NOT NULL AND recipe != ?').all(company_id, '[]');
         let usedInProducts = [];
         
@@ -430,7 +377,6 @@ ipcMain.handle('delete-material', (event, { id, company_id }) => {
     }
 });
 
-// تسجيل الدخول مع تشفير كلمة المرور
 ipcMain.handle('login', (event, { username, password, company_id }) => {
     try {
         const user = db.prepare('SELECT * FROM users WHERE username=? AND company_id=? AND is_blocked=0')
@@ -438,11 +384,9 @@ ipcMain.handle('login', (event, { username, password, company_id }) => {
         
         if (!user) return sendError(event, 'بيانات الدخول خاطئة');
         
-        // التحقق من كلمة المرور
         const isValid = bcrypt.compareSync(password, user.password_hash);
         if (!isValid) return sendError(event, 'بيانات الدخول خاطئة');
         
-        // لا نعيد كلمة المرور في الاستجابة
         const { password_hash, ...safeUser } = user;
         return sendSuccess({ user: safeUser });
     } catch (e) {
@@ -451,7 +395,6 @@ ipcMain.handle('login', (event, { username, password, company_id }) => {
     }
 });
 
-// إنشاء مستخدم مع تشفير كلمة المرور
 ipcMain.handle('create-user', (event, data) => {
     try {
         if (!data.full_name || !data.username || !data.password) {
@@ -470,7 +413,6 @@ ipcMain.handle('create-user', (event, data) => {
     }
 });
 
-// تحديث مستخدم
 ipcMain.handle('update-user', (event, data) => {
     try {
         if (!data.full_name || !data.username) {
@@ -493,7 +435,6 @@ ipcMain.handle('update-user', (event, data) => {
     }
 });
 
-// إنشاء شركة مع مستخدم افتراضي (كلمة مرور مشفرة)
 ipcMain.handle('create-company', (event, { name }) => {
     try {
         if (!name || name.trim().length === 0) return sendError(event, 'اسم المطعم مطلوب');
@@ -515,7 +456,6 @@ ipcMain.handle('create-company', (event, { name }) => {
     }
 });
 
-// الحصول على الإعدادات
 ipcMain.handle('get-settings', (event, company_id) => {
     try {
         const settings = db.prepare('SELECT * FROM settings WHERE company_id=?').get(company_id);
@@ -525,7 +465,6 @@ ipcMain.handle('get-settings', (event, company_id) => {
     }
 });
 
-// طباعة حرارية
 ipcMain.on('print-thermal', (event, htmlContent) => {
     try {
         let printWindow = new BrowserWindow({ show: false });
@@ -539,7 +478,6 @@ ipcMain.on('print-thermal', (event, htmlContent) => {
     }
 });
 
-// نسخ احتياطي
 ipcMain.handle('backup-database', async () => {
     try {
         const { filePath } = await dialog.showSaveDialog(mainWindow, {
@@ -557,7 +495,6 @@ ipcMain.handle('backup-database', async () => {
     }
 });
 
-// استيراد نسخة احتياطية
 ipcMain.handle('restore-database', async () => {
     try {
         const { filePaths } = await dialog.showOpenDialog(mainWindow, {
@@ -577,7 +514,6 @@ ipcMain.handle('restore-database', async () => {
     }
 });
 
-// حفظ الصورة
 ipcMain.handle('save-image', async (event, { fileName, buffer }) => {
     try {
         const filePath = path.join(imagesDir, fileName);
@@ -589,7 +525,6 @@ ipcMain.handle('save-image', async (event, { fileName, buffer }) => {
     }
 });
 
-// الحصول على مسار الصورة
 ipcMain.handle('get-image-path', (event, relativePath) => {
     try {
         if (!relativePath) return sendSuccess({ path: '' });

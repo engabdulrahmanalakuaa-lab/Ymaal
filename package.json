@@ -20,7 +20,11 @@
   },
   "build": {
     "appId": "com.technologies-soft.restaurant",
-    "productName": "تقنيات سوفت - مطاعم",
+    "productName": "كيان الشواية البخاري",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
     "win": {
       "target": "nsis",
       "icon": "icon.ico"
@@ -29,7 +33,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "تقنيات سوفت"
+      "shortcutName": "كيان الشواية البخاري"
     },
     "files": [
       "**/*",
